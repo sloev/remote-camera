@@ -1,5 +1,43 @@
 import { joinRoom } from "trystero";
 
+
+function getBlobFromMediaStream(stream) {
+
+    if ('ImageCapture' in window) {
+  
+      const videoTrack = stream.getVideoTracks()[0];
+      const imageCapture = new ImageCapture(videoTrack);
+      return imageCapture.takePhoto();
+      
+    } else {
+  
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+  
+      video.srcObject = stream;
+  
+      return new Promise((resolve, reject) => {
+        video.addEventListener('loadeddata', async () => {
+          const { videoWidth, videoHeight } = video;
+          canvas.width = videoWidth;
+          canvas.height = videoHeight;
+  
+          try {
+            await video.play();
+            context.drawImage(video, 0, 0, videoWidth, videoHeight);
+            canvas.toBlob(resolve, 'image/jpg');
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+  
+    }
+    
+  }
+
+  
 let room,
   sendPic,
   getPic,
@@ -79,6 +117,9 @@ async function load_state() {
         .getUserMedia({
           audio: false,
           video: true,
+          facingMode: {
+            exact: 'environment'
+          }
         })
         .then((selfStream) => {
           const [track] = selfStream.getVideoTracks();
@@ -97,15 +138,10 @@ async function load_state() {
               track.applyConstraints({ advanced: [{ zoom: data.zoomLevel }] });
             });
           }
-          imageCapture = new ImageCapture(track);
 
           getTakePictureEvent(() => {
-            imageCapture
-              .takePhoto()
-              .then((blob) => {
-                sendPic(blob);
-              })
-              .catch(error);
+            getBlobFromMediaStream(selfStream).then(blob=>{sendPic(blob)})
+            
           });
 
           room.addStream(selfStream);
